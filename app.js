@@ -301,7 +301,9 @@ function parseUploadedCSV(text) {
   if (lines.length < 2) return [];
   const headers = parseCSVLine(lines[0]).map(x => x.toLowerCase().trim());
   const rCol = headers.findIndex(h => /roll|enrol/.test(h));
-  const nCol = headers.findIndex(h => /name/.test(h));
+  const fnCol = headers.findIndex(h => /first.*name/.test(h));
+  const lnCol = headers.findIndex(h => /last.*name/.test(h));
+  const nCol = headers.findIndex(h => h === 'name' || h === 'student name' || /name/.test(h));
   
   let students = [];
   // basic heuristic
@@ -319,7 +321,12 @@ function parseUploadedCSV(text) {
   for(let i=1; i<lines.length; i++) {
     const p = parseCSVLine(lines[i]);
     const r = rCol>-1?p[rCol]||'':'';
-    const n = nCol>-1?p[nCol]||'':'';
+    let n = '';
+    if (fnCol > -1 && lnCol > -1) {
+      n = `${p[fnCol] || ''} ${p[lnCol] || ''}`.trim();
+    } else if (nCol > -1) {
+      n = p[nCol] || '';
+    }
     if(r||n) students.push({name:n.trim(), rollNo:r.trim()});
   }
   return students;
@@ -334,12 +341,23 @@ function parseExcel(buf) {
   const keys = Object.keys(json[0]);
   const kL = keys.map(k=>k.toLowerCase().trim());
   const rK = keys[kL.findIndex(k=>/roll|enrol/.test(k))];
-  const nK = keys[kL.findIndex(k=>/name/.test(k))];
   
-  return json.map(row => ({
-    name: nK ? String(row[nK]).trim() : '',
-    rollNo: rK ? String(row[rK]).trim() : ''
-  })).filter(x=>x.name||x.rollNo);
+  const fnK = keys[kL.findIndex(k=>/first.*name/.test(k))];
+  const lnK = keys[kL.findIndex(k=>/last.*name/.test(k))];
+  const nK = keys[kL.findIndex(k=>k === 'name' || k === 'student name' || /name/.test(k))];
+  
+  return json.map(row => {
+    let name = '';
+    if (fnK && lnK) {
+      name = `${row[fnK] || ''} ${row[lnK] || ''}`.trim();
+    } else if (nK) {
+      name = String(row[nK]).trim();
+    }
+    return {
+      name: name,
+      rollNo: rK ? String(row[rK]).trim() : ''
+    };
+  }).filter(x=>x.name||x.rollNo);
 }
 
 // ==================== PDF PARSING ====================
